@@ -1,8 +1,9 @@
-import { Bell, Search, Settings, Plus, Menu } from "lucide-react";
+import { Bell, Search, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "./Sidebar";
+import { NewTransactionDialog } from "@/components/transactions/NewTransactionDialog";
 
 export function Header({ title, description }: { title: string; description?: string }) {
   return (
@@ -42,10 +43,7 @@ export function Header({ title, description }: { title: string; description?: st
           <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-background"></span>
         </Button>
 
-        <Button className="h-9 gap-2 shadow-sm font-medium">
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">New Transaction</span>
-        </Button>
+        <NewTransactionDialog />
       </div>
     </header>
   );

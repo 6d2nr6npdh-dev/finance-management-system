@@ -7,6 +7,9 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import Accounts from "@/pages/Accounts";
 import Transactions from "@/pages/Transactions";
+import Budgets from "@/pages/Budgets";
+import Reports from "@/pages/Reports";
+import Invoices from "@/pages/Invoices";
 import Placeholder from "@/pages/Placeholder";
 
 function Router() {
@@ -15,16 +18,10 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/accounts" component={Accounts} />
       <Route path="/transactions" component={Transactions} />
+      <Route path="/budgets" component={Budgets} />
+      <Route path="/reports" component={Reports} />
+      <Route path="/invoices" component={Invoices} />
       
-      <Route path="/invoices">
-        <Placeholder title="Invoices" />
-      </Route>
-      <Route path="/budgets">
-        <Placeholder title="Budgets" />
-      </Route>
-      <Route path="/reports">
-        <Placeholder title="Reports" />
-      </Route>
       <Route path="/organization">
         <Placeholder title="Organization" />
       </Route>

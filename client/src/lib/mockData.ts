@@ -1,17 +1,33 @@
-import { LucideIcon, Wallet, CreditCard, ArrowUpRight, ArrowDownRight, Building2, ShoppingBag, Landmark, Coffee, Zap } from "lucide-react";
+import { LucideIcon, Wallet, CreditCard, ArrowUpRight, ArrowDownRight, Building2, ShoppingBag, Landmark, Coffee, Zap, Plane, FileText } from "lucide-react";
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  logo?: string;
+}
 
 export interface Account {
   id: string;
+  organizationId: string;
   name: string;
-  type: "Checking" | "Savings" | "Credit Card" | "Investment";
+  type: "checking" | "savings" | "credit_card" | "investment";
   balance: number;
   lastFour?: string;
   icon: LucideIcon;
   color: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  type: "income" | "expense";
+  parentId?: string;
+}
+
 export interface Transaction {
   id: string;
+  organizationId: string;
   payee: string;
   date: string;
   amount: number;
@@ -23,17 +39,25 @@ export interface Transaction {
 
 export interface Budget {
   id: string;
+  organizationId: string;
   category: string;
   spent: number;
   limit: number;
+  period: "monthly" | "yearly";
   color: string;
 }
+
+export const mockOrganizations: Organization[] = [
+  { id: "org1", name: "Acme Corporation", slug: "acme-corp" },
+  { id: "org2", name: "Globex Inc", slug: "globex-inc" },
+];
 
 export const mockAccounts: Account[] = [
   {
     id: "1",
+    organizationId: "org1",
     name: "Business Checking",
-    type: "Checking",
+    type: "checking",
     balance: 146152.50,
     lastFour: "4242",
     icon: Building2,
@@ -41,8 +65,9 @@ export const mockAccounts: Account[] = [
   },
   {
     id: "2",
+    organizationId: "org1",
     name: "Corporate Savings",
-    type: "Savings",
+    type: "savings",
     balance: 85000.00,
     lastFour: "8899",
     icon: Landmark,
@@ -50,8 +75,9 @@ export const mockAccounts: Account[] = [
   },
   {
     id: "3",
+    organizationId: "org1",
     name: "Amex Business",
-    type: "Credit Card",
+    type: "credit_card",
     balance: -3240.50,
     lastFour: "1001",
     icon: CreditCard,
@@ -62,6 +88,7 @@ export const mockAccounts: Account[] = [
 export const mockTransactions: Transaction[] = [
   {
     id: "t1",
+    organizationId: "org1",
     payee: "Stripe Payments",
     date: "2024-03-10",
     amount: 12500.00,
@@ -72,6 +99,7 @@ export const mockTransactions: Transaction[] = [
   },
   {
     id: "t2",
+    organizationId: "org1",
     payee: "AWS Web Services",
     date: "2024-03-09",
     amount: 2450.00,
@@ -82,6 +110,7 @@ export const mockTransactions: Transaction[] = [
   },
   {
     id: "t3",
+    organizationId: "org1",
     payee: "WeWork Office Rent",
     date: "2024-03-01",
     amount: 4500.00,
@@ -92,6 +121,7 @@ export const mockTransactions: Transaction[] = [
   },
   {
     id: "t4",
+    organizationId: "org1",
     payee: "Client Payment - Acme Corp",
     date: "2024-02-28",
     amount: 8500.00,
@@ -102,6 +132,7 @@ export const mockTransactions: Transaction[] = [
   },
   {
     id: "t5",
+    organizationId: "org1",
     payee: "Starbucks Meeting",
     date: "2024-02-28",
     amount: 45.50,
@@ -113,10 +144,10 @@ export const mockTransactions: Transaction[] = [
 ];
 
 export const mockBudgets: Budget[] = [
-  { id: "b1", category: "Infrastructure", spent: 2450, limit: 3000, color: "bg-blue-500" },
-  { id: "b2", category: "Office", spent: 4500, limit: 5000, color: "bg-purple-500" },
-  { id: "b3", category: "Marketing", spent: 1200, limit: 5000, color: "bg-pink-500" },
-  { id: "b4", category: "Travel", spent: 850, limit: 2000, color: "bg-orange-500" },
+  { id: "b1", organizationId: "org1", category: "Infrastructure", spent: 2450, limit: 3000, period: "monthly", color: "bg-blue-500" },
+  { id: "b2", organizationId: "org1", category: "Office", spent: 4500, limit: 5000, period: "monthly", color: "bg-purple-500" },
+  { id: "b3", organizationId: "org1", category: "Marketing", spent: 1200, limit: 5000, period: "monthly", color: "bg-pink-500" },
+  { id: "b4", organizationId: "org1", category: "Travel", spent: 850, limit: 2000, period: "monthly", color: "bg-orange-500" },
 ];
 
 export const revenueData = [
@@ -126,4 +157,8 @@ export const revenueData = [
   { name: "Apr", revenue: 61000, expenses: 42000 },
   { name: "May", revenue: 58000, expenses: 39000 },
   { name: "Jun", revenue: 65000, expenses: 45000 },
+];
+
+export const mockCategories = [
+  "Sales", "Services", "Infrastructure", "Office", "Meals", "Travel", "Marketing", "Salaries", "Software"
 ];

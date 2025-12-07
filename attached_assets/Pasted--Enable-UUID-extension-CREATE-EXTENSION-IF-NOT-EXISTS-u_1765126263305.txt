@@ -1,0 +1,470 @@
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ============================================================================
+-- USERS & AUTHENTICATION (handled by Supabase Auth)
+-- ============================================================================
+
+-- User profiles table (extends auth.users)
+CREATE TABLE public.user_profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    full_name TEXT,
+    avatar_url TEXT,
+    phone TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================================
+-- ORGANIZATIONS (Multi-tenancy)
+-- ============================================================================
+
+CREATE TABLE public.organizations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    logo_url TEXT,
+    currency TEXT DEFAULT 'USD',
+    timezone TEXT DEFAULT 'UTC',
+    fiscal_year_start INTEGER DEFAULT 1, -- Month (1-12)
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Organization membership with roles
+CREATE TYPE member_role AS ENUM ('owner', 'admin', 'accountant', 'viewer');
+
+CREATE TABLE public.organization_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    role member_role NOT NULL DEFAULT 'viewer',
+    invited_by UUID REFERENCES auth.users(id),
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, user_id)
+);
+
+-- ============================================================================
+-- ACCOUNTS (Bank accounts, credit cards, cash, etc.)
+-- ============================================================================
+
+CREATE TYPE account_type AS ENUM ('checking', 'savings', 'credit_card', 'cash', 'investment', 'loan', 'other');
+
+CREATE TABLE public.accounts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    type account_type NOT NULL,
+    currency TEXT DEFAULT 'USD',
+    initial_balance DECIMAL(15, 2) DEFAULT 0,
+    current_balance DECIMAL(15, 2) DEFAULT 0,
+    account_number TEXT, -- masked/encrypted
+    institution TEXT,
+    color TEXT, -- for UI display
+    is_active BOOLEAN DEFAULT true,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================================
+-- CATEGORIES (Hierarchical)
+-- ============================================================================
+
+CREATE TYPE category_type AS ENUM ('income', 'expense', 'transfer');
+
+CREATE TABLE public.categories (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    type category_type NOT NULL,
+    parent_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+    icon TEXT,
+    color TEXT,
+    is_system BOOLEAN DEFAULT false, -- system categories can't be deleted
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================================
+-- PAYEES (Vendors, Clients, Contractors)
+-- ============================================================================
+
+CREATE TABLE public.payees (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    address TEXT,
+    tax_id TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================================
+-- TRANSACTIONS (Core financial records)
+-- ============================================================================
+
+CREATE TYPE transaction_type AS ENUM ('income', 'expense', 'transfer');
+CREATE TYPE transaction_status AS ENUM ('pending', 'cleared', 'reconciled', 'void');
+
+CREATE TABLE public.transactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    type transaction_type NOT NULL,
+    status transaction_status DEFAULT 'pending',
+    
+    account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
+    to_account_id UUID REFERENCES accounts(id) ON DELETE RESTRICT, -- for transfers
+    
+    category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+    payee_id UUID REFERENCES payees(id) ON DELETE SET NULL,
+    
+    amount DECIMAL(15, 2) NOT NULL,
+    date DATE NOT NULL,
+    description TEXT,
+    reference_number TEXT, -- check number, invoice #, etc.
+    notes TEXT,
+    
+    tags TEXT[], -- array of tags for flexible categorization
+    attachments JSONB, -- store file URLs/metadata
+    
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    CONSTRAINT positive_amount CHECK (amount > 0)
+);
+
+-- ============================================================================
+-- RECURRING TRANSACTIONS (Automated transactions)
+-- ============================================================================
+
+CREATE TYPE recurrence_frequency AS ENUM ('daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly');
+
+CREATE TABLE public.recurring_transactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    
+    template_name TEXT NOT NULL,
+    type transaction_type NOT NULL,
+    account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    to_account_id UUID REFERENCES accounts(id) ON DELETE CASCADE,
+    category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+    payee_id UUID REFERENCES payees(id) ON DELETE SET NULL,
+    
+    amount DECIMAL(15, 2) NOT NULL,
+    description TEXT,
+    
+    frequency recurrence_frequency NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    next_occurrence DATE NOT NULL,
+    
+    is_active BOOLEAN DEFAULT true,
+    auto_create BOOLEAN DEFAULT false, -- auto-create or notify
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================================
+-- INVOICES (Bills sent to clients)
+-- ============================================================================
+
+CREATE TYPE invoice_status AS ENUM ('draft', 'sent', 'viewed', 'partial', 'paid', 'overdue', 'cancelled');
+
+CREATE TABLE public.invoices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    
+    invoice_number TEXT UNIQUE NOT NULL,
+    payee_id UUID NOT NULL REFERENCES payees(id) ON DELETE RESTRICT,
+    
+    status invoice_status DEFAULT 'draft',
+    issue_date DATE NOT NULL,
+    due_date DATE NOT NULL,
+    
+    subtotal DECIMAL(15, 2) DEFAULT 0,
+    tax_rate DECIMAL(5, 2) DEFAULT 0,
+    tax_amount DECIMAL(15, 2) DEFAULT 0,
+    discount_amount DECIMAL(15, 2) DEFAULT 0,
+    total DECIMAL(15, 2) NOT NULL,
+    amount_paid DECIMAL(15, 2) DEFAULT 0,
+    amount_due DECIMAL(15, 2) NOT NULL,
+    
+    currency TEXT DEFAULT 'USD',
+    notes TEXT,
+    terms TEXT,
+    
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Invoice line items
+CREATE TABLE public.invoice_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    
+    description TEXT NOT NULL,
+    quantity DECIMAL(10, 2) NOT NULL DEFAULT 1,
+    unit_price DECIMAL(15, 2) NOT NULL,
+    amount DECIMAL(15, 2) NOT NULL,
+    
+    category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+    sort_order INTEGER DEFAULT 0,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================================
+-- PAYMENTS (Track payments received for invoices)
+-- ============================================================================
+
+CREATE TYPE payment_method AS ENUM ('cash', 'check', 'bank_transfer', 'credit_card', 'paypal', 'other');
+
+CREATE TABLE public.payments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    
+    invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE RESTRICT,
+    account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
+    transaction_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
+    
+    amount DECIMAL(15, 2) NOT NULL,
+    payment_date DATE NOT NULL,
+    payment_method payment_method NOT NULL,
+    reference_number TEXT,
+    notes TEXT,
+    
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================================
+-- BUDGETS (Spending limits with alerts)
+-- ============================================================================
+
+CREATE TYPE budget_period AS ENUM ('monthly', 'quarterly', 'yearly', 'custom');
+
+CREATE TABLE public.budgets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    
+    name TEXT NOT NULL,
+    category_id UUID REFERENCES categories(id) ON DELETE CASCADE,
+    account_id UUID REFERENCES accounts(id) ON DELETE CASCADE,
+    
+    amount DECIMAL(15, 2) NOT NULL,
+    spent DECIMAL(15, 2) DEFAULT 0,
+    
+    period budget_period NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    
+    alert_threshold INTEGER DEFAULT 80, -- percentage
+    alert_enabled BOOLEAN DEFAULT true,
+    
+    is_active BOOLEAN DEFAULT true,
+    notes TEXT,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    CONSTRAINT check_category_or_account CHECK (
+        (category_id IS NOT NULL AND account_id IS NULL) OR
+        (category_id IS NULL AND account_id IS NOT NULL)
+    )
+);
+
+-- ============================================================================
+-- AUDIT LOGS (Compliance & change tracking)
+-- ============================================================================
+
+CREATE TYPE audit_action AS ENUM ('create', 'update', 'delete', 'login', 'logout', 'export', 'import');
+
+CREATE TABLE public.audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    action audit_action NOT NULL,
+    
+    table_name TEXT NOT NULL,
+    record_id UUID,
+    
+    old_values JSONB,
+    new_values JSONB,
+    
+    ip_address INET,
+    user_agent TEXT,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for fast audit log queries
+CREATE INDEX idx_audit_logs_org_date ON audit_logs(organization_id, created_at DESC);
+CREATE INDEX idx_audit_logs_user ON audit_logs(user_id, created_at DESC);
+CREATE INDEX idx_audit_logs_table ON audit_logs(table_name, record_id);
+
+-- ============================================================================
+-- INDEXES for Performance
+-- ============================================================================
+
+-- Organizations
+CREATE INDEX idx_organizations_slug ON organizations(slug);
+
+-- Organization Members
+CREATE INDEX idx_org_members_user ON organization_members(user_id);
+CREATE INDEX idx_org_members_org ON organization_members(organization_id);
+
+-- Accounts
+CREATE INDEX idx_accounts_org ON accounts(organization_id);
+CREATE INDEX idx_accounts_active ON accounts(organization_id, is_active);
+
+-- Categories
+CREATE INDEX idx_categories_org ON categories(organization_id);
+CREATE INDEX idx_categories_parent ON categories(parent_id);
+CREATE INDEX idx_categories_type ON categories(organization_id, type);
+
+-- Transactions
+CREATE INDEX idx_transactions_org_date ON transactions(organization_id, date DESC);
+CREATE INDEX idx_transactions_account ON transactions(account_id, date DESC);
+CREATE INDEX idx_transactions_category ON transactions(category_id);
+CREATE INDEX idx_transactions_payee ON transactions(payee_id);
+CREATE INDEX idx_transactions_status ON transactions(organization_id, status);
+
+-- Invoices
+CREATE INDEX idx_invoices_org ON invoices(organization_id);
+CREATE INDEX idx_invoices_payee ON invoices(payee_id);
+CREATE INDEX idx_invoices_status ON invoices(organization_id, status);
+CREATE INDEX idx_invoices_due_date ON invoices(due_date);
+
+-- Payments
+CREATE INDEX idx_payments_invoice ON payments(invoice_id);
+CREATE INDEX idx_payments_org ON payments(organization_id);
+
+-- Budgets
+CREATE INDEX idx_budgets_org ON budgets(organization_id);
+CREATE INDEX idx_budgets_active ON budgets(organization_id, is_active);
+
+-- ============================================================================
+-- TRIGGERS for automatic updates
+-- ============================================================================
+
+-- Update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply to all tables with updated_at
+CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON user_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_organizations_updated_at BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_accounts_updated_at BEFORE UPDATE ON accounts FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON categories FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_payees_updated_at BEFORE UPDATE ON payees FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_recurring_transactions_updated_at BEFORE UPDATE ON recurring_transactions FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON payments FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_budgets_updated_at BEFORE UPDATE ON budgets FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Update account balance on transaction
+CREATE OR REPLACE FUNCTION update_account_balance()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        -- Update source account
+        IF NEW.type = 'expense' OR NEW.type = 'transfer' THEN
+            UPDATE accounts SET current_balance = current_balance - NEW.amount WHERE id = NEW.account_id;
+        ELSIF NEW.type = 'income' THEN
+            UPDATE accounts SET current_balance = current_balance + NEW.amount WHERE id = NEW.account_id;
+        END IF;
+        
+        -- Update destination account for transfers
+        IF NEW.type = 'transfer' AND NEW.to_account_id IS NOT NULL THEN
+            UPDATE accounts SET current_balance = current_balance + NEW.amount WHERE id = NEW.to_account_id;
+        END IF;
+        
+    ELSIF TG_OP = 'UPDATE' THEN
+        -- Reverse old transaction
+        IF OLD.type = 'expense' OR OLD.type = 'transfer' THEN
+            UPDATE accounts SET current_balance = current_balance + OLD.amount WHERE id = OLD.account_id;
+        ELSIF OLD.type = 'income' THEN
+            UPDATE accounts SET current_balance = current_balance - OLD.amount WHERE id = OLD.account_id;
+        END IF;
+        
+        IF OLD.type = 'transfer' AND OLD.to_account_id IS NOT NULL THEN
+            UPDATE accounts SET current_balance = current_balance - OLD.amount WHERE id = OLD.to_account_id;
+        END IF;
+        
+        -- Apply new transaction
+        IF NEW.type = 'expense' OR NEW.type = 'transfer' THEN
+            UPDATE accounts SET current_balance = current_balance - NEW.amount WHERE id = NEW.account_id;
+        ELSIF NEW.type = 'income' THEN
+            UPDATE accounts SET current_balance = current_balance + NEW.amount WHERE id = NEW.account_id;
+        END IF;
+        
+        IF NEW.type = 'transfer' AND NEW.to_account_id IS NOT NULL THEN
+            UPDATE accounts SET current_balance = current_balance + NEW.amount WHERE id = NEW.to_account_id;
+        END IF;
+        
+    ELSIF TG_OP = 'DELETE' THEN
+        -- Reverse deleted transaction
+        IF OLD.type = 'expense' OR OLD.type = 'transfer' THEN
+            UPDATE accounts SET current_balance = current_balance + OLD.amount WHERE id = OLD.account_id;
+        ELSIF OLD.type = 'income' THEN
+            UPDATE accounts SET current_balance = current_balance - OLD.amount WHERE id = OLD.account_id;
+        END IF;
+        
+        IF OLD.type = 'transfer' AND OLD.to_account_id IS NOT NULL THEN
+            UPDATE accounts SET current_balance = current_balance - OLD.amount WHERE id = OLD.to_account_id;
+        END IF;
+    END IF;
+    
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_account_balance_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON transactions
+    FOR EACH ROW EXECUTE FUNCTION update_account_balance();
+
+-- Update invoice totals when items change
+CREATE OR REPLACE FUNCTION update_invoice_totals()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_invoice_id UUID;
+    v_subtotal DECIMAL(15, 2);
+BEGIN
+    v_invoice_id := COALESCE(NEW.invoice_id, OLD.invoice_id);
+    
+    SELECT COALESCE(SUM(amount), 0) INTO v_subtotal
+    FROM invoice_items
+    WHERE invoice_id = v_invoice_id;
+    
+    UPDATE invoices
+    SET 
+        subtotal = v_subtotal,
+        tax_amount = v_subtotal * tax_rate / 100,
+        total = v_subtotal + (v_subtotal * tax_rate / 100) - discount_amount,
+        amount_due = v_subtotal + (v_subtotal * tax_rate / 100) - discount_amount - amount_paid
+    WHERE id = v_invoice_id;
+    
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_invoice_totals_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON invoice_items
+    FOR EACH ROW EXECUTE FUNCTION update_invoice_totals();
