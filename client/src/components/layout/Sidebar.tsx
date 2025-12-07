@@ -92,8 +92,7 @@ export function Sidebar({ className }: SidebarProps) {
           {navItems.map((item) => {
             const isActive = location === item.href;
             return (
-              <Link key={item.href} href={item.href}>
-                <a className={cn(
+              <Link key={item.href} href={item.href} className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 group",
                   isActive 
                     ? "bg-primary/10 text-primary" 
@@ -104,7 +103,6 @@ export function Sidebar({ className }: SidebarProps) {
                     isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                   )} />
                   {item.label}
-                </a>
               </Link>
             );
           })}
