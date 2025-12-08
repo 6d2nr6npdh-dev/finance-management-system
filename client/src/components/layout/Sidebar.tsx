@@ -6,7 +6,6 @@ import {
   FileText, 
   PieChart, 
   BarChart3, 
-  Building2, 
   Settings,
   ChevronDown,
   Briefcase
@@ -21,8 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { mockOrganizations } from "@/lib/mockData";
-import { useState } from "react";
+import { useData } from "@/lib/dataContext";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -31,7 +29,6 @@ const navItems = [
   { icon: FileText, label: "Invoices", href: "/invoices" },
   { icon: PieChart, label: "Budgets", href: "/budgets" },
   { icon: BarChart3, label: "Reports", href: "/reports" },
-  { icon: Building2, label: "Organization", href: "/organization" },
 ];
 
 interface SidebarProps {
@@ -40,7 +37,9 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
-  const [activeOrg, setActiveOrg] = useState(mockOrganizations[0]);
+  const { activeOrgId, setActiveOrgId, organizations } = useData();
+  
+  const activeOrg = organizations.find(o => o.id === activeOrgId) || organizations[0];
 
   return (
     <aside className={cn("w-64 bg-sidebar border-r border-sidebar-border h-full flex flex-col", className)}>
@@ -70,8 +69,8 @@ export function Sidebar({ className }: SidebarProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="start">
             <DropdownMenuLabel>Organizations</DropdownMenuLabel>
-            {mockOrganizations.map(org => (
-              <DropdownMenuItem key={org.id} onClick={() => setActiveOrg(org)} className="gap-2">
+            {organizations.map(org => (
+              <DropdownMenuItem key={org.id} onClick={() => setActiveOrgId(org.id)} className="gap-2">
                  <div className="w-5 h-5 rounded bg-primary/20 flex items-center justify-center">
                     {org.name.substring(0,1)}
                  </div>
@@ -110,17 +109,19 @@ export function Sidebar({ className }: SidebarProps) {
       </div>
 
       <div className="p-4 border-t border-sidebar-border shrink-0">
-        <div className="flex items-center gap-3 p-2 rounded-md hover:bg-accent/50 cursor-pointer transition-colors">
-          <Avatar className="h-9 w-9 border border-border">
-            <AvatarImage src="https://github.com/shadcn.png" />
-            <AvatarFallback>JD</AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium leading-none truncate">John Doe</p>
-            <p className="text-xs text-muted-foreground truncate mt-1">Owner</p>
+        <Link href="/settings">
+          <div className="flex items-center gap-3 p-2 rounded-md hover:bg-accent/50 cursor-pointer transition-colors">
+            <Avatar className="h-9 w-9 border border-border">
+              <AvatarImage src="https://github.com/shadcn.png" />
+              <AvatarFallback>JD</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium leading-none truncate">John Doe</p>
+              <p className="text-xs text-muted-foreground truncate mt-1">Owner</p>
+            </div>
+            <Settings className="w-4 h-4 text-muted-foreground" />
           </div>
-          <Settings className="w-4 h-4 text-muted-foreground" />
-        </div>
+        </Link>
       </div>
     </aside>
   );

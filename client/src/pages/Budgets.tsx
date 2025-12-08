@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { mockBudgets, mockCategories } from "@/lib/mockData";
+import { useData } from "@/lib/dataContext";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,10 +23,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useState } from "react";
+import { mockCategories } from "@/lib/mockData"; // Still use categories list from mockData
+import { useToast } from "@/hooks/use-toast";
 
 function AddBudgetDialog() {
+  const { addBudget } = useData();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    
+    addBudget({
+      category: formData.get("category") as string,
+      limit: parseFloat(formData.get("limit") as string),
+      spent: 0,
+      period: formData.get("period") as any,
+      color: "bg-blue-500"
+    });
+
+    setOpen(false);
+    toast({ title: "Budget Created", description: "Spending limit set successfully." });
+  };
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="gap-2">
           <Plus className="w-4 h-4" /> Add Budget
@@ -39,59 +62,68 @@ function AddBudgetDialog() {
             Create a new spending limit for a specific category.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="category">Category</Label>
-            <Select>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {mockCategories.map(cat => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="category">Category</Label>
+              <Select name="category" required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {mockCategories.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="limit">Monthly Limit</Label>
+              <Input id="limit" name="limit" type="number" placeholder="0.00" required />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="period">Reset Period</Label>
+              <Select name="period" defaultValue="monthly">
+                <SelectTrigger>
+                  <SelectValue placeholder="Select period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="limit">Monthly Limit</Label>
-            <Input id="limit" type="number" placeholder="0.00" />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="period">Reset Period</Label>
-            <Select defaultValue="monthly">
-              <SelectTrigger>
-                <SelectValue placeholder="Select period" />
-              </SelectTrigger>
-              <SelectContent>
-                 <SelectItem value="monthly">Monthly</SelectItem>
-                 <SelectItem value="quarterly">Quarterly</SelectItem>
-                 <SelectItem value="yearly">Yearly</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button type="submit">Create Budget</Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="submit">Create Budget</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
 }
 
 export default function Budgets() {
+  const { budgets, deleteBudget } = useData();
+  const { toast } = useToast();
+
+  const handleDelete = (id: string) => {
+    deleteBudget(id);
+    toast({ title: "Budget Deleted", description: "The budget limit has been removed." });
+  };
+
   return (
     <Layout title="Budgets" description="Track your spending limits and goals.">
       <div className="flex justify-between items-center mb-6">
         <div className="space-y-1">
            <h2 className="text-2xl font-semibold tracking-tight">Active Budgets</h2>
-           <p className="text-sm text-muted-foreground">You have 4 active budgets for this month.</p>
+           <p className="text-sm text-muted-foreground">You have {budgets.length} active budgets.</p>
         </div>
         <AddBudgetDialog />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {mockBudgets.map((budget) => {
+        {budgets.map((budget) => {
           const percentage = Math.min((budget.spent / budget.limit) * 100, 100);
           const isOverBudget = budget.spent > budget.limit;
           
@@ -124,7 +156,12 @@ export default function Budgets() {
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                       <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:text-red-500 hover:bg-red-50">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 w-8 p-0 hover:text-red-500 hover:bg-red-50"
+                      onClick={() => handleDelete(budget.id)}
+                    >
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
