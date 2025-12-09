@@ -1,6 +1,27 @@
-node_modules
-dist
-.DS_Store
+
+
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnpm-debug.log
+
+# Replit / local
+.replit
+replit.nix
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Build outputs
+dist/
+build/
