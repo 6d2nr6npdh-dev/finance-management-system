@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage.js";
 
-import transactionsRouter from "./routes/transactions";
+import transactionsRouter from "./routes/transactions.ts";
 import authMiddleware from "./middleware/auth";
 
 export async function registerRoutes(

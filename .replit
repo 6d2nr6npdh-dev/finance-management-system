@@ -45,7 +45,7 @@ author = 50978582
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "grep -Rn \"registerRoutes\""
+args = "npx tsc"
 
 [agent]
 mockupState = "MOCKUP"
