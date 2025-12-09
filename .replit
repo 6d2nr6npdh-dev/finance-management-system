@@ -38,5 +38,14 @@ task = "shell.exec"
 args = "npm run dev:client"
 waitForPort = 5000
 
+[[workflows.workflow]]
+name = "installing supabase"
+mode = "sequential"
+author = 50978582
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "grep -Rn \"registerRoutes\""
+
 [agent]
 mockupState = "MOCKUP"
