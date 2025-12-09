@@ -13,6 +13,8 @@ import Reports from "@/pages/Reports";
 import Invoices from "@/pages/Invoices";
 import Settings from "@/pages/Settings";
 import Placeholder from "@/pages/Placeholder";
+import SignIn from "@/pages/SignIn";
+import SignUp from "@/pages/SignUp";
 
 function Router() {
   return (
@@ -24,6 +26,8 @@ function Router() {
       <Route path="/reports" component={Reports} />
       <Route path="/invoices" component={Invoices} />
       <Route path="/settings" component={Settings} />
+      <Route path="/sign-in" component={SignIn} />
+<Route path="/sign-up" component={SignUp} />
       
       <Route path="/organization">
         <Placeholder title="Organization" />
@@ -48,3 +52,4 @@ function App() {
 }
 
 export default App;
+
