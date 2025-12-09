@@ -16,6 +16,7 @@ import Placeholder from "@/pages/Placeholder";
 import SignIn from "@/pages/SignIn";
 import SignUp from "@/pages/SignUp";
 import CreateOrganization from "@/pages/CreateOrganization";
+import OrganizationSettings from "@/pages/OrganizationSettings";
 
 
 function Router() {
@@ -33,7 +34,8 @@ function Router() {
 <Route path="/org/:orgId/budgets" component={Budgets} />
 <Route path="/org/: orgId/reports" component={Reports} />
 <Route path="/org/:orgId/invoices" component={Invoices} />
-<Route path="/org/:orgId/settings" component={Settings} />
+<Route path="/user/:userId/settings" component={Settings} />
+<Route path="/org/: orgId/organization-settings" component={OrganizationSettings} />
       <Route path="/create-organization" component={CreateOrganization} />
       <Route path="/organization">
         <Placeholder title="Organization" />

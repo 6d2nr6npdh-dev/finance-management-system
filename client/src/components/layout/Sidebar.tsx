@@ -9,10 +9,10 @@ import {
   Settings,
   ChevronDown,
   Briefcase,
-  Plus
+  Plus,
+  Building2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,9 +27,9 @@ import { supabase } from "@/lib/supabase";
 // Navigation items
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "dashboard" },
-  { icon:  Wallet, label: "Accounts", path: "accounts" },
+  { icon:   Wallet, label: "Accounts", path: "accounts" },
   { icon: ArrowRightLeft, label: "Transactions", path: "transactions" },
-  { icon: FileText, label:  "Invoices", path: "invoices" },
+  { icon: FileText, label:   "Invoices", path: "invoices" },
   { icon: PieChart, label: "Budgets", path: "budgets" },
   { icon: BarChart3, label: "Reports", path: "reports" },
 ];
@@ -48,6 +48,7 @@ export function Sidebar({ className }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeOrg, setActiveOrg] = useState<Organization | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Extract org ID from URL (e.g., /org/123/dashboard -> 123)
@@ -56,15 +57,18 @@ export function Sidebar({ className }: SidebarProps) {
     return match ? match[1] : null;
   };
 
-  // Load user's organizations
+  // Load user's organizations and user ID
   useEffect(() => {
     const loadOrganizations = async () => {
-      const { data: { user } } = await supabase. auth.getUser();
+      const { data: { user } } = await supabase.  auth.getUser();
       
-      if (! user) {
+      if (!  user) {
         setIsLoading(false);
         return;
       }
+
+      // Set current user ID for profile settings link
+      setCurrentUserId(user.id);
 
       // Get all organizations the user is a member of
       const { data: memberships, error } = await supabase
@@ -107,7 +111,6 @@ export function Sidebar({ className }: SidebarProps) {
   // Switch to a different organization
   const switchOrganization = (org: Organization) => {
     setActiveOrg(org);
-    // Navigate to the new org's dashboard
     setLocation(`/org/${org.id}/dashboard`);
   };
 
@@ -151,7 +154,7 @@ export function Sidebar({ className }: SidebarProps) {
               <button className="w-full flex items-center justify-between p-2 rounded-md border border-input bg-background hover:bg-accent/50 transition-colors mb-6 shadow-xs">
                 <div className="flex items-center gap-2 overflow-hidden">
                   <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center shrink-0">
-                    <Briefcase className="w-3. 5 h-3.5 text-primary" />
+                    <Briefcase className="w-3.  5 h-3.5 text-primary" />
                   </div>
                   <span className="text-sm font-medium truncate">
                     {activeOrg?.name || "Select Organization"}
@@ -172,7 +175,7 @@ export function Sidebar({ className }: SidebarProps) {
                   )}
                 >
                   <div className="w-5 h-5 rounded bg-primary/20 flex items-center justify-center text-xs font-semibold">
-                    {org.name. substring(0, 1).toUpperCase()}
+                    {org.name.  substring(0, 1).toUpperCase()}
                   </div>
                   {org.name}
                 </DropdownMenuItem>
@@ -187,12 +190,12 @@ export function Sidebar({ className }: SidebarProps) {
         )}
 
         {/* Navigation */}
-        {activeOrg ?  (
+        {activeOrg ?   (
           <nav className="space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = isNavItemActive(item.path);
-              const href = getNavUrl(item. path);
+              const href = getNavUrl(item.  path);
               
               return (
                 <Link key={item.path} href={href}>
@@ -224,13 +227,25 @@ export function Sidebar({ className }: SidebarProps) {
         )}
       </div>
 
-      {/* Settings at bottom */}
+      {/* Organization Settings - only show if there's an active org */}
       {activeOrg && (
         <div className="p-4 border-t border-sidebar-border/50 shrink-0">
-          <Link href={getNavUrl("settings")}>
+          <Link href={getNavUrl("organization-settings")}>
+            <a className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground/70 hover: bg-accent/50 hover: text-accent-foreground transition-all duration-200">
+              <Building2 className="w-4 h-4" />
+              <span>Organization</span>
+            </a>
+          </Link>
+        </div>
+      )}
+
+      {/* User Profile Settings - Always visible, not org-specific */}
+      {currentUserId && (
+        <div className="p-4 border-t border-sidebar-border/50 shrink-0">
+          <Link href={`/user/${currentUserId}/settings`}>
             <a className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground/70 hover:bg-accent/50 hover:text-accent-foreground transition-all duration-200">
               <Settings className="w-4 h-4" />
-              <span>Settings</span>
+              <span>Profile Settings</span>
             </a>
           </Link>
         </div>
