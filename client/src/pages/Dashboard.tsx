@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
+import { supabase } from "@/lib/supabase";
 import { Layout } from "@/components/layout/Layout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { RevenueChart } from "@/components/dashboard/RevenueChart";
@@ -6,6 +9,27 @@ import { BudgetOverview } from "@/components/dashboard/BudgetOverview";
 import { Wallet, TrendingUp, TrendingDown, FileText } from "lucide-react";
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check if user is logged in
+  useEffect(() => {
+    supabase. auth.getSession().then(({ data: { session } }) => {
+      if (! session) {
+        setLocation("/");
+      } else {
+        setIsLoading(false);
+      }
+    });
+  }, [setLocation]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
   return (
     <Layout title="Dashboard" description="Welcome back! Here's what's happening with your finances.">
       {/* Stat Cards */}

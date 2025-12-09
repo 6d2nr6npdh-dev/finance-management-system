@@ -8,7 +8,8 @@ import {
   BarChart3, 
   Settings,
   ChevronDown,
-  Briefcase
+  Briefcase,
+  Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,26 +21,115 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useData } from "@/lib/dataContext";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
+// Navigation items
 const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-  { icon: Wallet, label: "Accounts", href: "/accounts" },
-  { icon: ArrowRightLeft, label: "Transactions", href: "/transactions" },
-  { icon: FileText, label: "Invoices", href: "/invoices" },
-  { icon: PieChart, label: "Budgets", href: "/budgets" },
-  { icon: BarChart3, label: "Reports", href: "/reports" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "dashboard" },
+  { icon:  Wallet, label: "Accounts", path: "accounts" },
+  { icon: ArrowRightLeft, label: "Transactions", path: "transactions" },
+  { icon: FileText, label:  "Invoices", path: "invoices" },
+  { icon: PieChart, label: "Budgets", path: "budgets" },
+  { icon: BarChart3, label: "Reports", path: "reports" },
 ];
 
 interface SidebarProps {
   className?: string;
 }
 
+interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export function Sidebar({ className }: SidebarProps) {
-  const [location] = useLocation();
-  const { activeOrgId, setActiveOrgId, organizations } = useData();
-  
-  const activeOrg = organizations.find(o => o.id === activeOrgId) || organizations[0];
+  const [location, setLocation] = useLocation();
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [activeOrg, setActiveOrg] = useState<Organization | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Extract org ID from URL (e.g., /org/123/dashboard -> 123)
+  const getOrgIdFromUrl = () => {
+    const match = location.match(/^\/org\/([^\/]+)/);
+    return match ? match[1] : null;
+  };
+
+  // Load user's organizations
+  useEffect(() => {
+    const loadOrganizations = async () => {
+      const { data: { user } } = await supabase. auth.getUser();
+      
+      if (! user) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Get all organizations the user is a member of
+      const { data: memberships, error } = await supabase
+        .from('organization_members')
+        .select(`
+          organization_id,
+          organizations (
+            id,
+            name,
+            slug
+          )
+        `)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error("Error loading organizations:", error);
+        setIsLoading(false);
+        return;
+      }
+
+      if (memberships && memberships.length > 0) {
+        const orgs = memberships
+          .map(m => m.organizations)
+          .filter(org => org !== null) as unknown as Organization[];
+        
+        setOrganizations(orgs);
+
+        // Set active org from URL or default to first org
+        const urlOrgId = getOrgIdFromUrl();
+        const active = orgs.find(o => o.id === urlOrgId) || orgs[0];
+        setActiveOrg(active);
+      }
+
+      setIsLoading(false);
+    };
+
+    loadOrganizations();
+  }, [location]);
+
+  // Switch to a different organization
+  const switchOrganization = (org: Organization) => {
+    setActiveOrg(org);
+    // Navigate to the new org's dashboard
+    setLocation(`/org/${org.id}/dashboard`);
+  };
+
+  // Build URL for navigation items based on active org
+  const getNavUrl = (path: string) => {
+    if (!activeOrg) return `/${path}`;
+    return `/org/${activeOrg.id}/${path}`;
+  };
+
+  // Check if current location matches a nav item
+  const isNavItemActive = (path: string) => {
+    if (!activeOrg) return location === `/${path}`;
+    return location === `/org/${activeOrg.id}/${path}`;
+  };
+
+  if (isLoading) {
+    return (
+      <aside className={cn("w-64 bg-sidebar border-r border-sidebar-border h-full flex flex-col", className)}>
+        <div className="p-6">Loading...</div>
+      </aside>
+    );
+  }
 
   return (
     <aside className={cn("w-64 bg-sidebar border-r border-sidebar-border h-full flex flex-col", className)}>
@@ -55,74 +145,96 @@ export function Sidebar({ className }: SidebarProps) {
 
       <div className="p-4 flex-1 overflow-y-auto">
         {/* Org Switcher */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="w-full flex items-center justify-between p-2 rounded-md border border-input bg-background hover:bg-accent/50 transition-colors mb-6 shadow-xs">
-              <div className="flex items-center gap-2 overflow-hidden">
-                <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center shrink-0">
-                  <Briefcase className="w-3.5 h-3.5 text-primary" />
+        {organizations.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full flex items-center justify-between p-2 rounded-md border border-input bg-background hover:bg-accent/50 transition-colors mb-6 shadow-xs">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center shrink-0">
+                    <Briefcase className="w-3. 5 h-3.5 text-primary" />
+                  </div>
+                  <span className="text-sm font-medium truncate">
+                    {activeOrg?.name || "Select Organization"}
+                  </span>
                 </div>
-                <span className="text-sm font-medium truncate">{activeOrg.name}</span>
-              </div>
-              <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="start">
-            <DropdownMenuLabel>Organizations</DropdownMenuLabel>
-            {organizations.map(org => (
-              <DropdownMenuItem key={org.id} onClick={() => setActiveOrgId(org.id)} className="gap-2">
-                 <div className="w-5 h-5 rounded bg-primary/20 flex items-center justify-center">
-                    {org.name.substring(0,1)}
-                 </div>
-                 {org.name}
+                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="start">
+              <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+              {organizations.map(org => (
+                <DropdownMenuItem 
+                  key={org.id} 
+                  onClick={() => switchOrganization(org)} 
+                  className={cn(
+                    "gap-2",
+                    activeOrg?.id === org.id && "bg-accent"
+                  )}
+                >
+                  <div className="w-5 h-5 rounded bg-primary/20 flex items-center justify-center text-xs font-semibold">
+                    {org.name. substring(0, 1).toUpperCase()}
+                  </div>
+                  {org.name}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setLocation("/create-organization")} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Create Organization
               </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2">
-              <div className="w-5 h-5 rounded border border-dashed border-foreground/50 flex items-center justify-center">
-                +
-              </div>
-              Create Organization
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const isActive = location === item.href;
-            return (
-              <Link key={item.href} href={item.href} className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 group",
-                  isActive 
-                    ? "bg-primary/10 text-primary" 
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                )}>
-                  <item.icon className={cn(
-                    "w-5 h-5 transition-colors",
-                    isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
-                  )} />
-                  {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-
-      <div className="p-4 border-t border-sidebar-border shrink-0">
-        <Link href="/settings">
-          <div className="flex items-center gap-3 p-2 rounded-md hover:bg-accent/50 cursor-pointer transition-colors">
-            <Avatar className="h-9 w-9 border border-border">
-              <AvatarImage src="https://github.com/shadcn.png" />
-              <AvatarFallback>JD</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-none truncate">John Doe</p>
-              <p className="text-xs text-muted-foreground truncate mt-1">Owner</p>
-            </div>
-            <Settings className="w-4 h-4 text-muted-foreground" />
+        {/* Navigation */}
+        {activeOrg ?  (
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = isNavItemActive(item.path);
+              const href = getNavUrl(item. path);
+              
+              return (
+                <Link key={item.path} href={href}>
+                  <a
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200",
+                      isActive
+                        ? "bg-accent text-accent-foreground shadow-sm"
+                        : "text-sidebar-foreground/70 hover:bg-accent/50 hover:text-accent-foreground"
+                    )}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </a>
+                </Link>
+              );
+            })}
+          </nav>
+        ) : (
+          <div className="text-sm text-muted-foreground text-center py-4">
+            <p className="mb-2">No organizations found</p>
+            <button
+              onClick={() => setLocation("/create-organization")}
+              className="text-primary hover:underline"
+            >
+              Create your first organization
+            </button>
           </div>
-        </Link>
+        )}
       </div>
+
+      {/* Settings at bottom */}
+      {activeOrg && (
+        <div className="p-4 border-t border-sidebar-border/50 shrink-0">
+          <Link href={getNavUrl("settings")}>
+            <a className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground/70 hover:bg-accent/50 hover:text-accent-foreground transition-all duration-200">
+              <Settings className="w-4 h-4" />
+              <span>Settings</span>
+            </a>
+          </Link>
+        </div>
+      )}
     </aside>
   );
 }

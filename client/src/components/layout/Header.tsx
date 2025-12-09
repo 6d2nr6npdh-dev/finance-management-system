@@ -1,11 +1,20 @@
-import { Bell, Search, Menu } from "lucide-react";
+import { Bell, Search, Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "./Sidebar";
 import { NewTransactionDialog } from "@/components/transactions/NewTransactionDialog";
+import { supabase } from "@/lib/supabase";
+import { useLocation } from "wouter";
 
 export function Header({ title, description }: { title: string; description?: string }) {
+  const [, setLocation] = useLocation();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
+
   return (
     <header className="h-16 border-b border-border bg-background/50 backdrop-blur-sm sticky top-0 z-10 px-4 md:px-6 flex items-center justify-between gap-4">
       
@@ -25,7 +34,7 @@ export function Header({ title, description }: { title: string; description?: st
 
       <div className="flex flex-col justify-center">
         <h1 className="text-xl font-heading font-semibold text-foreground">{title}</h1>
-        {description && <p className="text-sm text-muted-foreground hidden md:block">{description}</p>}
+        {description && <p className="text-sm text-muted-foreground hidden md: block">{description}</p>}
       </div>
 
       <div className="flex items-center gap-2 md:gap-4 ml-auto">
@@ -44,6 +53,17 @@ export function Header({ title, description }: { title: string; description?: st
         </Button>
 
         <NewTransactionDialog />
+
+        {/* Sign Out Button */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={handleSignOut}
+          className="text-muted-foreground hover: text-foreground"
+          title="Sign out"
+        >
+          <LogOut className="h-5 w-5" />
+        </Button>
       </div>
     </header>
   );

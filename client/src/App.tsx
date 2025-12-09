@@ -15,24 +15,31 @@ import Settings from "@/pages/Settings";
 import Placeholder from "@/pages/Placeholder";
 import SignIn from "@/pages/SignIn";
 import SignUp from "@/pages/SignUp";
+import CreateOrganization from "@/pages/CreateOrganization";
+
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/accounts" component={Accounts} />
-      <Route path="/transactions" component={Transactions} />
-      <Route path="/budgets" component={Budgets} />
-      <Route path="/reports" component={Reports} />
-      <Route path="/invoices" component={Invoices} />
-      <Route path="/settings" component={Settings} />
+      {/* Public routes */}
+      <Route path="/" component={SignUp} />
       <Route path="/sign-in" component={SignIn} />
-<Route path="/sign-up" component={SignUp} />
-      
+      <Route path="/sign-up" component={SignUp} />
+
+      {/* Protected routes */}
+      <Route path="/org/:orgId/dashboard" component={Dashboard} />
+<Route path="/org/:orgId/accounts" component={Accounts} />
+<Route path="/org/:orgId/transactions" component={Transactions} />
+<Route path="/org/:orgId/budgets" component={Budgets} />
+<Route path="/org/: orgId/reports" component={Reports} />
+<Route path="/org/:orgId/invoices" component={Invoices} />
+<Route path="/org/:orgId/settings" component={Settings} />
+      <Route path="/create-organization" component={CreateOrganization} />
       <Route path="/organization">
         <Placeholder title="Organization" />
       </Route>
 
+      {/* 404 */}
       <Route component={NotFound} />
     </Switch>
   );
@@ -52,4 +59,3 @@ function App() {
 }
 
 export default App;
-
