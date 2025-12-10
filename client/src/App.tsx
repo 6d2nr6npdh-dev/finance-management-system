@@ -32,10 +32,10 @@ function Router() {
 <Route path="/org/:orgId/accounts" component={Accounts} />
 <Route path="/org/:orgId/transactions" component={Transactions} />
 <Route path="/org/:orgId/budgets" component={Budgets} />
-<Route path="/org/: orgId/reports" component={Reports} />
+<Route path="/org/:orgId/reports" component={Reports} />
 <Route path="/org/:orgId/invoices" component={Invoices} />
 <Route path="/user/:userId/settings" component={Settings} />
-<Route path="/org/: orgId/organization-settings" component={OrganizationSettings} />
+<Route path="/org/:orgId/organization-settings" component={OrganizationSettings} />
       <Route path="/create-organization" component={CreateOrganization} />
       <Route path="/organization">
         <Placeholder title="Organization" />
